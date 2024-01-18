@@ -160,6 +160,7 @@ const getAssistantResponse = async function(prompt, phone_no_id, token, recipien
 } 
 
 app.post("/webhook", async (req, res) => { // I want some [text cut off]    
+    console.log("hhhhh");
     let body_param = req.body;
     
     console.log(JSON.stringify(body_param, null, 2));
