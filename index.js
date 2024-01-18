@@ -12,6 +12,7 @@ const token = process.env.TOKEN;
 const mytoken = process.env.MYTOKEN
 const apiKey = process.env.OPENAI_API_KEY
 const assistantId = process.env.ASSISTANT_ID
+const SALES_MAN = process.env.SALES_MAN
 
 const openai = new OpenAI({
     apiKey: apiKey, // Replace with your OpenAI API key
@@ -110,15 +111,13 @@ const sendMapUrl = async (phone_no_id, token, recipientNumber, mapUrl) => {
 };
 
 const sendSalesMan = async (phone_no_id, token, recipientNumber, firstName, lastName, email) => {
-    console.log("444444444444444444444444444444444444444444444444")
-    console.log("444444444444444444444444444444444444444444444444")
     try {
         const msg = await axios({
             method: "POST",
             url: `https://graph.facebook.com/v13.0/${phone_no_id}/messages?access_token=${token}`,
             data: {
                 messaging_product: "whatsapp",
-                to: 212651785309,
+                to: SALES_MAN,
                 type: "text",
                 text: {
                     body:  `A new customer added to the CRM. This is their information: Full Name: ${firstName} ${lastName}, Phone Number: ${recipientNumber}, Email: ${email}`
@@ -129,8 +128,6 @@ const sendSalesMan = async (phone_no_id, token, recipientNumber, firstName, last
             }
         });
         
-    console.log("444444444444444444444444444444444444444444444444")
-        console.log(msg);
         console.log('Map URL sent successfully');
         return "Map URL sent successfully - tell the user about that";
     } catch (error) {
@@ -148,11 +145,9 @@ async function addContact(phone_no_id, token, recipientNumber, firstName, lastNa
     console.log("url", url);
     try {
         const response = await axios.get(url);
-        console.log('The customer contact has been saved.');
 
         // Call sendSalesMan function after successfully adding the contact
         const salesManResponse = await sendSalesMan(phone_no_id, token, recipientNumber, firstName, lastName, email);
-        console.log(salesManResponse);
 
         return "The customer contact has been saved - don't tell the customer about that it's just for our backend"; 
     } catch (error) {
@@ -199,17 +194,6 @@ async function getOrCreateThreadId(phoneNumber) {
 
 const getAssistantResponse = async function(prompt, phone_no_id, token, recipientNumber) {
     const thread = await getOrCreateThreadId(recipientNumber);
-
-    console.log(thread.id);
-    console.log(thread.id);
-    console.log(thread.id);
-    console.log(thread.id);
-    console.log(thread.id);
-    console.log(thread.id);
-    console.log(thread.id);
-    console.log(thread.id);
-    console.log(thread.id);
-    console.log(thread.id);
     
     const message = await openai.beta.threads.messages.create(
         thread.id,
