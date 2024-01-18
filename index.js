@@ -17,6 +17,22 @@ const openai = new OpenAI({
     apiKey: apiKey, // Replace with your OpenAI API key
 });
 
+const imageUrls = [
+    'https://res.cloudinary.com/di5lcdswr/image/upload/v1705344722/PHOTO-2021-10-19-10-47-56_drwkuk.jpg',
+    'https://res.cloudinary.com/di5lcdswr/image/upload/v1705344722/PHOTO-2021-10-19-10-47-56_2_soq39w.jpg',
+    'https://res.cloudinary.com/di5lcdswr/image/upload/v1705344722/PHOTO-2021-10-19-10-47-56_1_dvdnc4.jpg',
+    'https://res.cloudinary.com/di5lcdswr/image/upload/v1705344722/PHOTO-2021-10-19-10-47-56_3_g2miyt.jpg',
+    'https://res.cloudinary.com/di5lcdswr/image/upload/v1705344721/PHOTO-2021-10-19-10-47-56_4_mvznw7.jpg',
+    'https://res.cloudinary.com/di5lcdswr/image/upload/v1705344721/PHOTO-2021-10-19-10-47-56_5_nixozh.jpg',
+    'https://res.cloudinary.com/di5lcdswr/image/upload/v1705344721/PHOTO-2021-10-19-10-47-56_8_bbzozr.jpg',
+    'https://res.cloudinary.com/di5lcdswr/image/upload/v1705344721/PHOTO-2021-10-19-10-47-56_6_iijfw5.jpg',
+    'https://res.cloudinary.com/di5lcdswr/image/upload/v1705344721/PHOTO-2021-10-19-10-47-56_7_yca55k.jpg',
+    'https://res.cloudinary.com/di5lcdswr/image/upload/v1705344721/PHOTO-2021-10-19-10-47-56_9_cxiuul.jpg'
+];
+
+const mapUrl = 'https://maps.app.goo.gl/4k8YVGdaEBsiKntL8?g_st=ic';
+
+
 app.listen(8000||process.env.PORT, () => {
     console.log("webhook is listening");
 });
@@ -37,6 +53,102 @@ app.get("/webhook", (req, res) => {
         }
     }
 });
+
+const sendMultipleImages = async (phone_no_id, token, recipientNumber) => {
+    for (const imageUrl of imageUrls) {
+        try {
+            await axios({
+                method: "POST",
+                url: `https://graph.facebook.com/v13.0/${phone_no_id}/messages?access_token=${token}`,
+                data: {
+                    messaging_product: "whatsapp",
+                    to: recipientNumber,
+                    type: "image",
+                    image: {
+                        link: imageUrl
+                    }
+                },
+                headers: {
+                    "Content-Type": "application/json"
+                }
+            });
+            console.log(`Message sent successfully: Image URL - ${imageUrl}`);
+        } catch (error) {
+            console.error(`Error sending image ${imageUrl}:`, error);
+            // Logging the error for the specific image URL
+            console.error(`Error sending image ${imageUrl}:`, error);
+        }
+    }
+    return('the images have been sent successfully, inform the client that you have sent the property images to take a look')
+}
+
+// await sendMultipleImages(phone_no_id, token, from);
+
+const sendMapUrl = async (phone_no_id, token, recipientNumber, mapUrl) => {
+    try {
+        await axios({
+            method: "POST",
+            url: `https://graph.facebook.com/v13.0/${phone_no_id}/messages?access_token=${token}`,
+            data: {
+                messaging_product: "whatsapp",
+                to: recipientNumber,
+                type: "text",
+                text: {
+                    preview_url: true, // Enable link preview
+                    body: mapUrl // The URL you want to send
+                }
+            },
+            headers: {
+                "Content-Type": "application/json"
+            }
+        });
+        console.log('Map URL sent successfully');
+        return "Map URL sent successfully - tell the user about that";
+    } catch (error) {
+        console.error('Error sending map URL:', error);
+    }
+};
+
+// const sendSalesMan = async (phone_no_id, token, recipientNumber, firstName, lastName, email) => {
+//     try {
+//         const msg = await axios({
+//             method: "POST",
+//             url: `https://graph.facebook.com/v13.0/${phone_no_id}/messages?access_token=${token}`,
+//             data: {
+//                 messaging_product: "whatsapp",
+//                 to: +8618205091701,
+//                 type: "text",
+//                 text: {
+//                     body:  `A new customer added to the CRM. This is their information: Full Name: ${firstName} ${lastName}, Phone Number: ${recipientNumber}, Email: ${email}`
+//                 }
+//             },
+//             headers: {
+//                 "Content-Type": "application/json"
+//             }
+//         });
+//         console.log(msg);
+//         console.log('Map URL sent successfully');
+//         return "Map URL sent successfully - tell the user about that";
+//     } catch (error) {
+//         console.error('Error sending map URL:', error);
+//     }
+// };
+
+// await sendMapUrl(phone_no_id, from, token, mapUrl)
+
+async function addContact(phone_no_id, token, recipientNumber, firstName, lastName, email) {
+    console.log(phone_no_id, token, recipientNumber, firstName, lastName, email);
+    const baseUrl = 'https://b24-gvi2xb.bitrix24.com/rest/1/4e86q5si6pbop24j/crm.contact.add.json';
+    const url = `${baseUrl}?FIELDS[NAME]=${encodeURIComponent(firstName)}&FIELDS[LAST_NAME]=${encodeURIComponent(lastName)}&FIELDS[EMAIL][0][VALUE]=${encodeURIComponent(email)}&FIELDS[PHONE][0][VALUE]=${encodeURIComponent(recipientNumber)}`;
+    console.log("url", url);
+    try {
+        const response = await axios.get(url);
+        return "the customer contacted have been saved - don't tell the customer about that it's just for our backend"; 
+    } catch (error) {
+        console.error('Error:', error);
+        return null; // or handle the error as needed
+    }
+}
 
 async function getOrCreateThreadId(phoneNumber) {
     let usersThreads;
@@ -78,7 +190,16 @@ const getAssistantResponse = async function(prompt, phone_no_id, token, recipien
     const thread = await getOrCreateThreadId(recipientNumber);
 
     console.log(thread.id);
-
+    console.log(thread.id);
+    console.log(thread.id);
+    console.log(thread.id);
+    console.log(thread.id);
+    console.log(thread.id);
+    console.log(thread.id);
+    console.log(thread.id);
+    console.log(thread.id);
+    console.log(thread.id);
+    
     const message = await openai.beta.threads.messages.create(
         thread.id,
         {
@@ -110,7 +231,9 @@ const getAssistantResponse = async function(prompt, phone_no_id, token, recipien
 
                 // Dispatch table
                 const dispatchTable = {
-                    "retrieve_from_s3_and_send_to_openai": retrieve_from_s3_and_send_to_openai
+                    "sendMultipleImages": sendMultipleImages,
+                    "sendMapUrl": sendMapUrl,
+                    "addContact": addContact
                 };
             
                 let toolsOutput = [];
@@ -131,6 +254,20 @@ const getAssistantResponse = async function(prompt, phone_no_id, token, recipien
                     } else {
                         console.log("Function not found");
                     }
+                    
+                    // if (funcName === "sendMultipleImages") {
+                    //     const output = await sendMultipleImages(phone_no_id, token, recipientNumber);
+                    //     toolsOutput.push({
+                    //         tool_call_id: action.id,
+                    //         output: JSON.stringify(output)  
+                    //     });
+                    // } else if (funcName === "sendMapUrl") {
+                    //     const output = await sendMapUrl(phone_no_id, recipientNumber, token, mapUrl);
+                    //     toolsOutput.push({
+                    //         tool_call_id: action.id,
+                    //         output: JSON.stringify(output)  
+                    //     });
+                    // } 
                 }
             
                 // Submit the tool outputs to Assistant API
@@ -158,9 +295,55 @@ const getAssistantResponse = async function(prompt, phone_no_id, token, recipien
     return await checkStatusAndPrintMessages(thread.id, run.id);
 
 } 
+// const getAssistantResponse = async function(prompt) {
+//     const thread = await openai.beta.threads.create();
+
+//     console.log(thread.id);
+    
+//     const message = await openai.beta.threads.messages.create(
+//         thread.id,
+//         {
+//             role: "user",
+//             content: prompt
+//         }
+//         );
+        
+//         const run = await openai.beta.threads.runs.create(
+//             thread.id,
+//             { 
+//                 assistant_id: assistantId,
+//             }
+//             );
+            
+//     console.log(run.id);
+//     const checkStatusAndPrintMessages = async (threadId, runId) => {
+//         let runStatus;
+//         while (true) {
+//             runStatus = await openai.beta.threads.runs.retrieve(threadId, runId);
+//             console.log(runStatus.status);
+//             if (runStatus.status === "completed") {
+//                 break; // Exit the loop if the run status is completed
+//             }
+//             console.log("Run is not completed yet.");
+//             await delay(1000); // Wait for 1 second before checking again
+//         }
+//         let messages = await openai.beta.threads.messages.list(threadId);
+//         console.log("messages", messages)
+//         return messages.data[0].content[0].text.value
+//     };
+  
+//     function delay(ms) {
+//       return new Promise((resolve) => {
+//           setTimeout(resolve, ms);
+//       });
+//     }
+  
+//     // Call checkStatusAndPrintMessages function
+//     return await checkStatusAndPrintMessages(thread.id, run.id);
+
+// } 
 
 app.post("/webhook", async (req, res) => { // I want some [text cut off]    
-    console.log("hhhhh");
     let body_param = req.body;
     
     console.log(JSON.stringify(body_param, null, 2));
