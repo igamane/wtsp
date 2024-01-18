@@ -127,6 +127,8 @@ const sendSalesMan = async (phone_no_id, token, recipientNumber, firstName, last
                 "Content-Type": "application/json"
             }
         });
+        console.log(SALES_MAN);
+        console.log(msg);
         
         console.log('Map URL sent successfully');
         return "Map URL sent successfully - tell the user about that";
