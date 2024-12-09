@@ -6,7 +6,7 @@ const fs = require('fs');
 
 require("dotenv").config();
 
-const app = express().use(body_parser.json());
+const app = express().use(body_parser.json()); 
 
 const token = process.env.TOKEN;
 const mytoken = process.env.MYTOKEN
