@@ -18,6 +18,7 @@ const openai = new OpenAI({
     apiKey: apiKey, // Replace with your OpenAI API key
 });
 
+// Existing predefined image URLs
 const imageUrls = [
     'https://res.cloudinary.com/di5lcdswr/image/upload/v1705344722/PHOTO-2021-10-19-10-47-56_drwkuk.jpg',
     'https://res.cloudinary.com/di5lcdswr/image/upload/v1705344722/PHOTO-2021-10-19-10-47-56_2_soq39w.jpg',
@@ -33,11 +34,12 @@ const imageUrls = [
 
 const mapUrl = 'https://maps.app.goo.gl/4k8YVGdaEBsiKntL8?g_st=ic';
 
+// A set to cache message IDs to prevent duplicates
+const messageCache = new Set();
 
 app.listen(8000||process.env.PORT, () => {
     console.log("webhook is listening");
 });
-
 
 app.get("/webhook", (req, res) => {
     let mode = req.query["hub.mode"];
@@ -76,14 +78,10 @@ const sendMultipleImages = async (phone_no_id, token, recipientNumber) => {
             console.log(`Message sent successfully: Image URL - ${imageUrl}`);
         } catch (error) {
             console.error(`Error sending image ${imageUrl}:`, error);
-            // Logging the error for the specific image URL
-            console.error(`Error sending image ${imageUrl}:`, error);
         }
     }
     return('the images have been sent successfully, inform the client that you have sent the property images to take a look')
 }
-
-// await sendMultipleImages(phone_no_id, token, from);
 
 const sendMapUrl = async (phone_no_id, token, recipientNumber, mapUrl) => {
     try {
@@ -95,8 +93,8 @@ const sendMapUrl = async (phone_no_id, token, recipientNumber, mapUrl) => {
                 to: recipientNumber,
                 type: "text",
                 text: {
-                    preview_url: true, // Enable link preview
-                    body: mapUrl // The URL you want to send
+                    preview_url: true,
+                    body: mapUrl 
                 }
             },
             headers: {
@@ -137,9 +135,6 @@ const sendSalesMan = async (phone_no_id, token, recipientNumber, firstName, last
     }
 };
 
-// await sendSalesMan(phone_no_id, from, token, mapUrl)
-// await sendMapUrl(phone_no_id, from, token, mapUrl)
-
 async function addContact(phone_no_id, token, recipientNumber, firstName, lastName, email) {
     console.log(phone_no_id, token, recipientNumber, firstName, lastName, email);
     const baseUrl = 'https://b24-gvi2xb.bitrix24.com/rest/1/4e86q5si6pbop24j/crm.contact.add.json';
@@ -148,52 +143,113 @@ async function addContact(phone_no_id, token, recipientNumber, firstName, lastNa
     try {
         const response = await axios.get(url);
 
-        // Call sendSalesMan function after successfully adding the contact
+        // Call sendSalesMan after successfully adding the contact
         const salesManResponse = await sendSalesMan(phone_no_id, token, recipientNumber, firstName, lastName, email);
 
         return "The customer contact has been saved - don't tell the customer about that it's just for our backend"; 
     } catch (error) {
         console.error('Error:', error);
-        return null; // or handle the error as needed
+        return null;
     }
 }
 
 async function getOrCreateThreadId(phoneNumber) {
     let usersThreads;
     try {
-      // Read the file synchronously
       const data = fs.readFileSync('users_threads.json');
       usersThreads = JSON.parse(data);
     } catch (err) {
-      // Handle errors (e.g., file not found)
       console.error('Error reading file:', err);
       return null;
     }
   
-    // Check if the phone number is already in the file
     const existingThread = usersThreads.find(user => user['customer phone number'] === phoneNumber);
     if (existingThread) {
       return existingThread['thread id'];
     }
   
-    // Create a new thread id
     const newThreadId = await openai.beta.threads.create();
   
-    // Add the new thread to the usersThreads array
     usersThreads.push({ 'customer phone number': phoneNumber, 'thread id': newThreadId });
   
-    // Save the updated array back to the file
     try {
       fs.writeFileSync('users_threads.json', JSON.stringify(usersThreads, null, 2));
     } catch (err) {
-      // Handle errors (e.g., unable to write to file)
       console.error('Error writing file:', err);
       return null;
     }
   
     return newThreadId;
-  }
+}
 
+// Additional functions from second script:
+
+// Fetch image from WhatsApp and convert to base64
+async function fetchImageUrl(imageId) {
+    try {
+        const response = await axios({
+            method: 'GET',
+            url: `https://graph.facebook.com/v14.0/${imageId}`,
+            headers: {
+                Authorization: `Bearer ${token}`,
+            }
+        });
+
+        const imageUrl = response.data.url; 
+        console.log('Fetched image URL:', imageUrl);
+
+        // Download the image content
+        const imageResponse = await axios({
+            method: 'GET',
+            url: imageUrl,
+            responseType: 'arraybuffer',
+            headers: {
+                Authorization: `Bearer ${token}`,
+            }
+        });
+
+        // Convert the binary image data to base64
+        const imageBase64 = Buffer.from(imageResponse.data, 'binary').toString('base64');
+        return `data:image/jpeg;base64,${imageBase64}`;
+    } catch (error) {
+        console.error('Error fetching image from WhatsApp:', error);
+        return null;
+    }
+}
+
+// Process image through OpenAI gpt-4o model for description
+async function processImage(imageUrl) {
+    try {
+        // Using chat completion with gpt-4o model to describe the image
+        // Note: This assumes you have access to the gpt-4o model in your OpenAI instance.
+        const response = await openai.chat.completions.create({
+            model: "gpt-4o",
+            messages: [
+                {
+                    "role": "user",
+                    "content": [
+                        { "type": "text", "text": "Describe this image in details" },
+                        {
+                            type: "image_url",
+                            image_url: {
+                                url: imageUrl,
+                                details: "high"
+                            }
+                        }
+                    ],
+                },
+            ],
+            max_tokens: 300,
+        });
+
+        return response.choices[0].message.content;
+    } catch (error) {
+        console.error('Error processing image:', error);
+        return 'Error processing image.';
+    }
+}
+
+// Main function to get assistant response
 const getAssistantResponse = async function(prompt, phone_no_id, token, recipientNumber) {
     const thread = await getOrCreateThreadId(recipientNumber);
     
@@ -203,30 +259,31 @@ const getAssistantResponse = async function(prompt, phone_no_id, token, recipien
             role: "user",
             content: prompt
         }
-        );
+    );
         
-        const run = await openai.beta.threads.runs.create(
-            thread.id,
-            { 
-                assistant_id: assistantId,
-            }
-            );
+    const run = await openai.beta.threads.runs.create(
+        thread.id,
+        { 
+            assistant_id: assistantId,
+        }
+    );
             
     console.log(run.id);
+
     const checkStatusAndPrintMessages = async (threadId, runId) => {
         let runStatus;
         while (true) {
             runStatus = await openai.beta.threads.runs.retrieve(threadId, runId);
             console.log(runStatus.status);
             if (runStatus.status === "completed") {
-                break; // Exit the loop if the run status is completed
+                break; 
             } else if (runStatus.status === 'requires_action') {
                 console.log("Requires action");
             
                 const requiredActions = runStatus.required_action.submit_tool_outputs.tool_calls;
                 console.log(requiredActions);
 
-                // Dispatch table
+                // Dispatch table from first script features
                 const dispatchTable = {
                     "sendMultipleImages": sendMultipleImages,
                     "sendMapUrl": sendMapUrl,
@@ -240,7 +297,6 @@ const getAssistantResponse = async function(prompt, phone_no_id, token, recipien
                     const functionArguments = JSON.parse(action.function.arguments);
 
                     if (dispatchTable[funcName]) {
-                        console.log("dispatchTable[funcName]", dispatchTable[funcName]);
                         try {
                             const output = await dispatchTable[funcName](phone_no_id, token, recipientNumber, ...Object.values(functionArguments));
                             console.log(output);
@@ -251,23 +307,8 @@ const getAssistantResponse = async function(prompt, phone_no_id, token, recipien
                     } else {
                         console.log("Function not found");
                     }
-                    
-                    // if (funcName === "sendMultipleImages") {
-                    //     const output = await sendMultipleImages(phone_no_id, token, recipientNumber);
-                    //     toolsOutput.push({
-                    //         tool_call_id: action.id,
-                    //         output: JSON.stringify(output)  
-                    //     });
-                    // } else if (funcName === "sendMapUrl") {
-                    //     const output = await sendMapUrl(phone_no_id, recipientNumber, token, mapUrl);
-                    //     toolsOutput.push({
-                    //         tool_call_id: action.id,
-                    //         output: JSON.stringify(output)  
-                    //     });
-                    // } 
                 }
             
-                // Submit the tool outputs to Assistant API
                 await openai.beta.threads.runs.submitToolOutputs(
                     thread.id,
                     run.id,
@@ -288,83 +329,84 @@ const getAssistantResponse = async function(prompt, phone_no_id, token, recipien
       });
     }
   
-    // Call checkStatusAndPrintMessages function
     return await checkStatusAndPrintMessages(thread.id, run.id);
+};
 
-} 
-// const getAssistantResponse = async function(prompt) {
-//     const thread = await openai.beta.threads.create();
-
-//     console.log(thread.id);
-    
-//     const message = await openai.beta.threads.messages.create(
-//         thread.id,
-//         {
-//             role: "user",
-//             content: prompt
-//         }
-//         );
-        
-//         const run = await openai.beta.threads.runs.create(
-//             thread.id,
-//             { 
-//                 assistant_id: assistantId,
-//             }
-//             );
-            
-//     console.log(run.id);
-//     const checkStatusAndPrintMessages = async (threadId, runId) => {
-//         let runStatus;
-//         while (true) {
-//             runStatus = await openai.beta.threads.runs.retrieve(threadId, runId);
-//             console.log(runStatus.status);
-//             if (runStatus.status === "completed") {
-//                 break; // Exit the loop if the run status is completed
-//             }
-//             console.log("Run is not completed yet.");
-//             await delay(1000); // Wait for 1 second before checking again
-//         }
-//         let messages = await openai.beta.threads.messages.list(threadId);
-//         console.log("messages", messages)
-//         return messages.data[0].content[0].text.value
-//     };
-  
-//     function delay(ms) {
-//       return new Promise((resolve) => {
-//           setTimeout(resolve, ms);
-//       });
-//     }
-  
-//     // Call checkStatusAndPrintMessages function
-//     return await checkStatusAndPrintMessages(thread.id, run.id);
-
-// } 
-
-app.post("/webhook", async (req, res) => { // I want some [text cut off]    
-    let body_param = req.body;
-    
-    console.log(JSON.stringify(body_param, null, 2));
-    
+// Function to process the incoming message asynchronously
+async function processMessage(body_param) {
     if(body_param.object){
         if(body_param.entry &&
            body_param.entry[0].changes &&
            body_param.entry[0].changes[0].value.messages &&
            body_param.entry[0].changes[0].value.messages[0]
         ){
+            let message = body_param.entry[0].changes[0].value.messages[0];
+            let messageId = message.id;
             let phone_no_id = body_param.entry[0].changes[0].value.metadata.phone_number_id;
-            let from = body_param.entry[0].changes[0].value.messages[0].from;
-            let msg_body = body_param.entry[0].changes[0].value.messages[0].text.body;
+            let from = message.from;
+            let msg_body;
+
+            // Prevent duplicate processing
+            if (messageCache.has(messageId)) {
+                console.log('Duplicate message received and ignored:', messageId);
+                return;
+            } else {
+                console.log('Processing new message:', messageId);
+                messageCache.add(messageId);
+                setTimeout(() => {
+                    messageCache.delete(messageId);
+                }, 300000); // 5 minutes
+            }
+
+            // Check if user wants to reset conversation
+            if (message.text && message.text.body === '1') {
+                let usersThreads = [];
+                try {
+                    const data = fs.readFileSync('users_threads.json');
+                    usersThreads = JSON.parse(data);
+                } catch (err) {
+                    console.error('Error reading file:', err);
+                }
+
+                const filteredThreads = usersThreads.filter(user => user['customer phone number'] !== from);
+
+                try {
+                    fs.writeFileSync('users_threads.json', JSON.stringify(filteredThreads, null, 2));
+                    console.log(`Thread for user ${from} has been reset`);
+                } catch (err) {
+                    console.error('Error writing file:', err);
+                }
+
+                msg_body = 'Hey'; // After reset, start fresh
+            } else if (message.text) {
+                msg_body = message.text.body;
+            } else if (message.image) {
+                const imageId = message.image.id;
+                console.log('Fetching image with ID:', imageId);
+
+                const base64Image = await fetchImageUrl(imageId);
+                if (base64Image) {
+                    const imageDescription = await processImage(base64Image);
+                    msg_body = `System: The user has sent the product image\nImage Description: ${imageDescription}`;
+                    console.log(msg_body);
+                } else {
+                    msg_body = 'System: Error fetching image from WhatsApp.';
+                }
+            } else if (message.video) {
+                msg_body = 'System: The user has sent the product video';
+                console.log(msg_body);
+            } else {
+                msg_body = 'System: The user has sent a media message';
+                console.log(msg_body);
+            }
 
             let assistantResponse = await getAssistantResponse(msg_body, phone_no_id, token, from);
 
-            console.log("assistantR?esponse", assistantResponse);
-
-            
-            
+            console.log("Assistant response:", assistantResponse);
 
             axios({
                 method: "POST",
-                url: "https://graph.facebook.com/v13.0/" + phone_no_id + "/messages?access_token=" + token,
+                url: `https://graph.facebook.com/v13.0/${phone_no_id}/messages?access_token=${token}`,
                 data: {
                     messaging_product: "whatsapp",
                     to: from,
@@ -375,17 +417,22 @@ app.post("/webhook", async (req, res) => { // I want some [text cut off]
                 headers: {
                     "Content-Type": "application/json"
                 }
+            }).catch(err => {
+                console.error('Error sending message:', err);
             });
-            
-            res.sendStatus(200);
-        } else {
-            res.sendStatus(404);
         }
-            
     }
-    // Additional code may be needed here to complete the response
+}
+
+// Immediate ACK and then async process the message
+app.post("/webhook", async (req, res) => {
+    res.status(200).send('ACK');  // Immediate acknowledgment
+    console.log("Received a webhook request");
+    let body_param = req.body;
+    console.log("Webhook request body:", JSON.stringify(body_param, null, 2));
+    processMessage(body_param); // Process message asynchronously
 });
 
 app.get("/", (req, res) =>{
     res.status(200).send("hello bro");
-})
+});
